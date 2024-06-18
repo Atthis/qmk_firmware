@@ -1,0 +1,368 @@
+/*
+Copyright 2019 @foostan
+Copyright 2020 Drashna Jaelre <@drashna>
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+// QMK includes
+#include QMK_KEYBOARD_H
+
+// Layer names replacing numbers
+enum layer_names {
+    _BASE_,
+    _F_ARR_CALC_,
+    _NUM_,
+    _MEDIA_,
+    _TILES_
+};
+
+// words per minute string initialization
+char wpm_str[10];
+
+// if oled is enable
+#ifdef OLED_ENABLE
+// Import animation
+#include "ocean_dream.c"
+
+// Supercharge oled init function to define screen rotation
+oled_rotation_t oled_init_user(oled_rotation_t rotation) {
+    if (!is_keyboard_master()) {
+        return OLED_ROTATION_270;  // flips the display 180 degrees if offhand
+    } else {
+        return OLED_ROTATION_270;
+    }
+    return rotation;
+}
+
+// KEYLOG - from default crkbd.c
+char     key_name;
+uint16_t last_keycode;
+uint8_t  last_row;
+uint8_t  last_col;
+
+// Chaque position de valeur correspond à la valeur de la touhce, le "keycode".
+// voir pour faire la correspondance des calques QWERTY et QWERTY Lafayette
+static const char PROGMEM code_to_name[60] = {' ', ' ', ' ', ' ', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'R', 'E', 'B', 'T', '_', '-', '=', '[', ']', '\\', '#', ';', '\'', '`', ',', '.', '/', ' ', ' ', ' '};
+static const char PROGMEM lfyt_base[60] = {' ', ' ', ' ', ' ', '1', '2', '3', '4', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'R', 'E', 'B', 'T', '_', '-', '=', '[', ']', '\\', '#', ';', '\'', '`', ',', '.', '/', ' ', ' ', ' '};
+
+// const char tab[] = "TAB";
+// const char esc[] = "ESC";
+// const char shift[] = "SHIFT";
+// const char bkspc[] = "BKSPC";
+// const char ctrl[] = "CTRL";
+// const char del[] = "DEL";
+
+char test[15];
+char base1[12][10] = {"tab","Q","W","E","R","T","Y","U","I","O","P","esc"};
+char base2[12][10] = {"shift","A","S","D","F","G","H","J","K","L","*","bkspc"};
+char base3[12][10] = {"ctrl","Z","X","C","V","B","N","M",",",".","/","del"};
+char base4[5][10] = {"","","","","Enter"};
+
+// char fct1[12][10] = {"tab","F1","F2","F3","F4","F5","F11","F12","7","8","9","-"};
+// char fct2[12][10] = {"shift","PgUP","Home","Up","End","Meh  PgUp","/","*","4","5","6","+"};
+// char fct3[12][10] = {"ctrl","PgDwn","Left","Down","Right","Meh  PgDwn",".","0","1","2","3","Enter"};
+// char fct4[5][10] = {"","","","","^"};
+
+// static const char PROGMEM lfyt_test[3][12][10] = {
+//     {"tab","Q","W","E","R","T","Y","U","I","O","P","esc"},
+//     {"shift","A","S","D","F","G","H","J","K","L","*","bkspc"},
+//     {"ctrl","Z","X","C","V","B","N","M",",",".","/","del"}
+// };
+
+
+static void set_keylog(uint16_t keycode, keyrecord_t *record) {
+    // key_name     = ' ';
+    last_keycode = keycode;
+    if (IS_QK_MOD_TAP(keycode)) {
+        if (record->tap.count) {
+            keycode = QK_MOD_TAP_GET_TAP_KEYCODE(keycode);
+        } else {
+            keycode = 0xE0 + biton(QK_MOD_TAP_GET_MODS(keycode) & 0xF) + biton(QK_MOD_TAP_GET_MODS(keycode) & 0x10);
+        }
+    } else if (IS_QK_LAYER_TAP(keycode) && record->tap.count) {
+        keycode = QK_LAYER_TAP_GET_TAP_KEYCODE(keycode);
+    } else if (IS_QK_MODS(keycode)) {
+        keycode = QK_MODS_GET_BASIC_KEYCODE(keycode);
+    } else if (IS_QK_ONE_SHOT_MOD(keycode)) {
+        keycode = 0xE0 + biton(QK_ONE_SHOT_MOD_GET_MODS(keycode) & 0xF) + biton(QK_ONE_SHOT_MOD_GET_MODS(keycode) & 0x10);
+    }
+    if (keycode > ARRAY_SIZE(code_to_name)) {
+        return;
+    }
+
+    last_row = record->event.key.row;
+    last_col = record->event.key.col;
+    // update keylog
+    // Le nom de la touche est récupéré à la ligne ci-dessous, à partir du keycode qui vaut une valeur d'index
+    // key_name = pgm_read_byte(&code_to_name[keycode]);
+    switch (get_highest_layer(layer_state)) {
+        case _BASE_:
+            switch (last_row) {
+                case 0:
+                    sprintf(test, "%s", base1[last_col]);
+                    break;
+                case 1:
+                    sprintf(test, "%s", base2[last_col]);
+                    break;
+                case 2:
+                    sprintf(test, "%s", base3[last_col]);
+                    break;
+                case 3:
+                    sprintf(test, "%s", base4[last_col]);
+                    break;
+                default:
+                    sprintf(test, "%08d", last_keycode);
+            }
+
+
+            // key_name = lfyt_test[last_row][last_col];
+            // sprintf(test, "%s", lfyt_test[last_row][last_col]);
+            // key_name = pgm_read_byte(&array[last_col]);
+            break;
+        case _F_ARR_CALC_:
+            // switch (last_row) {
+            //     case 0:
+            //         sprintf(test, "%s", fct1[last_col]);
+            //         break;
+            //     case 1:
+            //         sprintf(test, "%s", fct2[last_col]);
+            //         break;
+            //     case 2:
+            //         sprintf(test, "%s", fct3[last_col]);
+            //         break;
+            //     case 3:
+            //         sprintf(test, "%s", fct4[last_col]);
+            //         break;
+            //     default:
+            //         sprintf(test, "%08d", last_keycode);
+            // }
+            // key_name = pgm_read_byte(&lfyt_fctn[keycode]);
+            // key_name = pgm_read_byte(&lfyt_fctn[keycode]);
+            break;
+        case _NUM_:
+            // key_name = pgm_read_byte(&lfyt_base[keycode]);
+            // key_name = pgm_read_byte(&lfyt_base[keycode]);
+            break;
+        case _MEDIA_:
+            // key_name = pgm_read_byte(&lfyt_base[keycode]);
+            // key_name = pgm_read_byte(&lfyt_base[keycode]);
+            break;
+            break;
+        case _TILES_:
+            // key_name = pgm_read_byte(&lfyt_base[keycode]);
+            // key_name = pgm_read_byte(&lfyt_base[keycode]);
+            break;
+        default:
+            // key_name = "KCerr";
+            break;
+    }
+    // key_name = pgm_read_byte(&lfyt_base[keycode]);
+    // last_row = record->event.key.row;
+    // last_col = record->event.key.col;
+}
+
+static const char *depad_str(const char *depad_str, char depad_char) {
+    while (*depad_str == depad_char)
+        ++depad_str;
+    return depad_str;
+}
+
+static void oled_render_keylog(void) {
+    const char *last_row_str = get_u8_str(last_row, ' ');
+    oled_write(depad_str(last_row_str, ' '), false);
+    oled_write_P(PSTR("x"), false);
+    const char *last_col_str = get_u8_str(last_col, ' ');
+    oled_write(depad_str(last_col_str, ' '), false);
+    oled_write_P(PSTR(", k"), false);
+    const char *last_keycode_str = get_u16_str(last_keycode, ' ');
+    oled_write(depad_str(last_keycode_str, ' '), false);
+    oled_write_P(PSTR(":"), false);
+    // oled_write_char(key_name, false);
+    oled_write(test, false);
+}
+
+bool process_record_kb(uint16_t keycode, keyrecord_t *record) {
+    if (record->event.pressed) {
+        set_keylog(keycode, record);
+    }
+    return process_record_user(keycode, record);
+}
+// END KEYLOG
+
+// function for master keyboard
+static void left_hand_func(void) {
+    // set display cursor at start of the screen
+    oled_set_cursor(0, 0);
+
+    // Define image array
+    static const char PROGMEM logo_incaya[] = {
+        // 'logoIncaya32x128', 32x128px
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0xc0, 0xe0, 0xe0, 0xf0, 0xf0, 0xf8, 0xf8, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 
+        0xfc, 0xfc, 0xfc, 0xfc, 0xf8, 0xf8, 0xf8, 0xf0, 0xf0, 0xe0, 0xe0, 0xc0, 0x80, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x01, 0x01, 0x03, 0x03, 0x87, 0x87, 0xcf, 0xcf, 0xff, 0xff, 0xf1, 0xf1, 0xf1, 
+        0xf1, 0xf1, 0xf1, 0xf3, 0xe3, 0xe3, 0xe3, 0xe7, 0xc7, 0xc7, 0x8f, 0x0f, 0x0f, 0x07, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x07, 0x07, 0x0f, 0x0f, 0x1f, 0x1f, 0x3f, 0xbf, 0xbf, 0xe7, 
+        0xc7, 0xc7, 0xc7, 0xc7, 0xc7, 0xcf, 0x8f, 0x0f, 0x0f, 0x07, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x0e, 0x1f, 0x1f, 0x3f, 0x3f, 0x7f, 
+        0x7f, 0xef, 0xcf, 0x8f, 0x0f, 0x07, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    };
+
+    // display logo
+    oled_write_raw_P(logo_incaya, sizeof(logo_incaya));
+
+    // write text on overlay of the logo
+    oled_write_P(PSTR("LFYTE"), false);
+
+    // write layer name
+    oled_set_cursor(0, 1);
+    switch (get_highest_layer(layer_state)) {
+        case _BASE_:
+            oled_write_ln_P(PSTR("base"), false);
+            break;
+        case _F_ARR_CALC_:
+            oled_write_ln_P(PSTR("F->N"), false);
+            break;
+        case _NUM_:
+            oled_write_ln_P(PSTR("nbrs"), false);
+            break;
+        case _MEDIA_:
+            oled_write_ln_P(PSTR("media"), false);
+            break;
+            break;
+        case _TILES_:
+            oled_write_ln_P(PSTR("tiles"), false);
+            break;
+        default:
+            oled_write_ln_P(PSTR("Undef"), false);
+            break;
+    }
+
+    oled_set_cursor(0, 4);
+    // Show the WPM
+    // edit the string to change what shows up, edit %03d to change how many digits show up
+    sprintf(wpm_str, "%02dWPM", get_current_wpm());
+    oled_write(wpm_str, false);
+
+    oled_render_keylog();
+
+    oled_set_cursor(0, 14);
+    oled_write_ln_P(PSTR("inKya"), false);
+}
+
+// function for slave keyboard
+static void right_hand_func(void) {
+    // Ocean Dream animations
+    // see : https://github.com/snowe2010/qmk_firmware/blob/ocean-dream/users/snowe/readme_ocean_dream.md
+    render_stars();
+}
+
+// Global function for oled display
+bool oled_task_user(){  
+    if (is_keyboard_master()) {
+        left_hand_func(); // master function
+    } else {
+        right_hand_func(); // slave function
+    }
+    return false;
+}
+
+#endif
+
+// CUSTOM KEYMAP
+const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
+    [_BASE_] = LAYOUT_split_3x6_3(
+  //,-----------------------------------------------------.                    ,-----------------------------------------------------.
+       KC_TAB,    KC_Q,    KC_W,    KC_E,    KC_R,    KC_T,                         KC_Y,    KC_U,    KC_I,    KC_O,   KC_P,  KC_ESC,
+  //|--------+--------+--------+--------+--------+--------|                    |--------+--------+--------+--------+--------+--------|
+      KC_LSFT,    KC_A,    KC_S,    KC_D,    KC_F,    KC_G,                         KC_H,    KC_J,    KC_K,    KC_L, KC_SCLN, KC_BSPC,
+  //|--------+--------+--------+--------+--------+--------|                    |--------+--------+--------+--------+--------+--------|
+      KC_LCTL,    KC_Z,    KC_X,    KC_C,    KC_V,    KC_B,                         KC_N,    KC_M, KC_COMM,  KC_DOT, KC_SLSH,  KC_DEL,
+  //|--------+--------+--------+--------+--------+--------+--------|  |--------+--------+--------+--------+--------+--------+--------|
+                           LT(4,KC_LGUI),   KC_LALT,  LT(1,KC_ENT),     LT(2,KC_SPC),   KC_RALT, KC_MPLY
+                                      //`--------------------------'  `--------------------------'
+  ),
+
+    [_F_ARR_CALC_] = LAYOUT_split_3x6_3(
+  //,-----------------------------------------------------.                    ,-----------------------------------------------------.
+       KC_TAB, 	 KC_F1,   KC_F2,   KC_F3,   KC_F4,   KC_F5,                       KC_F11,  KC_F12,   KC_P7,   KC_P8,   KC_P9, KC_PMNS,
+  //|--------+--------+--------+--------+--------+--------|                    |--------+--------+--------+--------+--------+--------|
+      KC_LSFT, KC_PGUP, KC_HOME,   KC_UP,  KC_END, MEH(KC_PGUP),                 KC_PSLS, KC_PAST,   KC_P4,   KC_P5,   KC_P6, KC_PPLS,
+  //|--------+--------+--------+--------+--------+--------|                    |--------+--------+--------+--------+--------+--------|
+      KC_LCTL, KC_PGDN, KC_LEFT, KC_DOWN, KC_RGHT, MEH(KC_PGDN),                 KC_PDOT,   KC_P0,   KC_P1,   KC_P2,   KC_P3, KC_PENT,
+  //|--------+--------+--------+--------+--------+--------+--------|  |--------+--------+--------+--------+--------+--------+--------|
+                                          KC_LGUI, KC_LALT, KC_TRNS, LT(3,KC_SPC), KC_RALT, KC_BSPC
+                                      //`--------------------------'  `--------------------------'   					 		
+  ),
+
+    [_NUM_] = LAYOUT_split_3x6_3(
+  //,-----------------------------------------------------.                    ,-----------------------------------------------------.
+       KC_GRV, KC_EXLM,   KC_AT, KC_HASH,  KC_DLR, KC_PERC,                      KC_CIRC, KC_AMPR, KC_ASTR, KC_LPRN, KC_RPRN, KC_MINS,
+  //|--------+--------+--------+--------+--------+--------|                    |--------+--------+--------+--------+--------+--------|
+      KC_LSFT,    KC_1,    KC_2,    KC_3,    KC_4,    KC_5,                         KC_6,    KC_7,    KC_8,    KC_9,    KC_0,  KC_EQL,
+  //|--------+--------+--------+--------+--------+--------|                    |--------+--------+--------+--------+--------+--------|
+      KC_LCTL,   KC_F6,   KC_F7,   KC_F8,   KC_F9,  KC_F10,                      KC_PSCR, KC_LEFT,   KC_UP, KC_DOWN, KC_RGHT, KC_BSPC, 
+  //|--------+--------+--------+--------+--------+--------+--------|  |--------+--------+--------+--------+--------+--------+--------|
+                                   LT(4,KC_LGUI), KC_LALT, LT(3,KC_ENT),KC_TRNS, KC_RALT,    KC_NO
+                                      //`--------------------------'  `--------------------------,			 		                                
+  ),
+
+    [_MEDIA_] = LAYOUT_split_3x6_3(
+  //,-----------------------------------------------------.                    ,-----------------------------------------------------.
+      QK_BOOT, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO,                                KC_VOLU, KC_MPRV, KC_MPLY, KC_MNXT,   KC_NO, KC_CALC,
+  //|--------+--------+--------+--------+--------+--------|                    |--------+--------+--------+--------+--------+--------|
+      RGB_TOG, RGB_HUI, RGB_SAI, RGB_VAI, KC_NO, KC_NO,                           KC_VOLD,  KC_NO,   KC_NO,   KC_NO,   KC_NO,   KC_NO,
+  //|--------+--------+--------+--------+--------+--------|                    |--------+--------+--------+--------+--------+--------|
+      RGB_MOD, RGB_HUD, RGB_SAD, RGB_VAD, KC_NO, KC_NO,                            KC_NO,   KC_NO,   KC_NO,   KC_NO, KC_BRID, KC_BRIU,
+  //|--------+--------+--------+--------+--------+--------+--------|  |--------+--------+--------+--------+--------+--------+--------|
+                                    LT(4,KC_LGUI), KC_LALT, KC_TRNS,    KC_TRNS, KC_RALT,   KC_NO
+                                      //`--------------------------'  `--------------------------'  			 
+  ),
+
+    [_TILES_] = LAYOUT_split_3x6_3(
+  //,-----------------------------------------------------.                    ,-----------------------------------------------------.
+      KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO,                                 LALT(KC_F4), KC_NO, KC_NO, KC_NO, KC_NO, KC_NO,
+  //|--------+--------+--------+--------+--------+--------|                    |--------+--------+--------+--------+--------+--------|
+      KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO,                                 KC_NO, LGUI(KC_ENT), LGUI(KC_UP), KC_NO, KC_NO, KC_NO,
+  //|--------+--------+--------+--------+--------+--------|                    |--------+--------+--------+--------+--------+--------|
+      RGB_MOD, RGB_HUD, RGB_SAD, RGB_VAD, KC_NO, KC_NO,                    KC_NO, LGUI(KC_LEFT), LGUI(KC_DOWN), LGUI(KC_RGHT), KC_NO, KC_NO,
+  //|--------+--------+--------+--------+--------+--------+--------|  |--------+--------+--------+--------+--------+--------+--------|
+                                          KC_TRNS,   KC_NO,   KC_NO,      KC_NO,   KC_NO,   KC_NO
+                                      //`--------------------------'  `--------------------------'                            
+  )
+};
